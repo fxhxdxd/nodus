@@ -39,16 +39,8 @@ const SNIPPETS: Snippet[] = [
   {
     title: "Claude Desktop",
     caption:
-      "Merge into the app's config file (macOS: ~/Library/Application Support/Claude/claude_desktop_config.json), then restart the app.",
-    code: JSON.stringify(
-      {
-        mcpServers: {
-          nodus: { command: "npx", args: ["-y", "mcp-remote", `${ORIGIN}/sse`] },
-        },
-      },
-      null,
-      2
-    ),
+      "One command, run inside this repo — it finds the app's config on macOS, Windows, or Linux, backs it up, and adds Nodus. Then fully quit and reopen Claude Desktop.",
+    code: `npm run connect:claude-desktop -- --url ${ORIGIN}/sse`,
   },
 ];
 

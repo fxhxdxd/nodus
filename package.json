@@ -11,7 +11,8 @@
     "generate-configs": "node scripts/generate-configs.js",
     "build:ui": "npm --prefix ui run build",
     "build": "tsc && npm run build:ui",
-    "postinstall": "npm --prefix ui install"
+    "postinstall": "npm --prefix ui install",
+    "connect:claude-desktop": "node scripts/connect-claude-desktop.js"
   },
   "type": "commonjs",
   "dependencies": {

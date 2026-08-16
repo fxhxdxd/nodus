@@ -39,7 +39,24 @@ The dashboard shows these with copy buttons, pre-filled for your host/port:
 | **Cursor** | This repo ships `.cursor/mcp.json` — open the repo in Cursor and approve the server. For other workspaces, copy that file in. |
 | **Claude Code** | `claude mcp add --transport sse nodus http://localhost:3939/sse` |
 | **Codex** (CLI or app) | `codex mcp add nodus --url http://localhost:3939/mcp` |
-| **Claude Desktop** | Merge `examples/claude_desktop_config.json` into the app's config file, restart the app |
+| **Claude Desktop** | `npm run connect:claude-desktop` — merges the app's config for you (macOS/Windows/Linux, backup kept), then fully quit and reopen the app |
+
+<details>
+<summary>Claude Desktop — manual setup instead</summary>
+
+Merge the contents of `examples/claude_desktop_config.json` into the app's
+config file yourself, then fully restart the app:
+
+| OS | Config file |
+| --- | --- |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+Tip: in the app, **Settings → Developer → Edit Config** opens this file's
+location directly.
+
+</details>
 
 ### Try it
 
