@@ -15,6 +15,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { upsertNode, getNode, listDomain, searchNodes, type ContextNode } from "../db";
+import { recordActivity } from "../activity";
 
 type CompactNode = Pick<ContextNode, "key" | "value" | "updated_at">;
 
@@ -35,6 +36,10 @@ export function createNodusServer(): McpServer {
     name: "nodus",
     version: "1.0.0",
   });
+
+  /** Name from the connected client's MCP initialize handshake. */
+  const clientName = (): string =>
+    server.server.getClientVersion()?.name ?? "unknown client";
 
   server.registerTool(
     "query_nodus_state",
@@ -99,7 +104,9 @@ export function createNodusServer(): McpServer {
       },
     },
     async ({ domain, key, value }) => {
-      const node = upsertNode(domain, key, value);
+      const by = clientName();
+      const node = upsertNode(domain, key, value, by);
+      recordActivity({ type: "write", domain, key, by, preview: value });
       return jsonResult({
         ok: true,
         domain: node.domain,

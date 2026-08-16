@@ -25,7 +25,8 @@ npm start          # starts everything on http://localhost:3939
 
 Then open **http://localhost:3939** in your browser. The **Connect** tab
 walks you through hooking up each AI tool with copy-paste snippets that
-already point at the right address — that's the whole setup.
+already point at the right address — and the cards check themselves off
+live as each tool connects, so you know setup worked.
 
 > Different port? `NODUS_PORT=4000 npm start` — the dashboard and its
 > snippets adapt automatically.
@@ -63,8 +64,10 @@ location directly.
 1. In one connected tool: *“Save to nodus: the active task is fixing the login bug.”*
 2. In a different tool: *“What does nodus say the active task is?”*
 
-The second tool answers from the first tool's memory. Watch entries appear
-live in the dashboard's **Memory Explorer**.
+The second tool answers from the first tool's memory. Watch the write land
+in real time in the dashboard's **Activity** tab, and browse, search, edit,
+or delete anything in **Memory Explorer** (every entry shows which client
+wrote it). One-click JSON **export/import** keeps backups easy.
 
 ## How it works
 
@@ -126,10 +129,14 @@ data/               SQLite database (gitignored, created on boot)
 | `GET /sse`, `POST /messages` | MCP over legacy HTTP+SSE |
 | `ALL /mcp` | MCP over streamable HTTP |
 | `GET /health`, `GET /api/health` | liveness + active session counts |
-| `GET /api/nodes?limit&offset` | paginated context nodes |
+| `GET /api/sessions`, `GET /api/clients` | live sessions + clients ever seen (with MCP clientInfo) |
+| `GET /api/nodes?limit&offset&q&domain` | paginated, searchable context nodes |
+| `POST /api/nodes` | create/update a node from the dashboard |
 | `DELETE /api/nodes/:id` | delete a node |
-| `GET /api/stats` | node/domain counts + DB size |
-| `GET /api/eval/stream` | run the benchmark, streamed as SSE |
+| `GET /api/domains`, `GET /api/stats` | domain list, node counts + DB size |
+| `GET /api/export`, `POST /api/import` | JSON backup / restore |
+| `GET /api/activity`, `GET /api/activity/stream` | recent + live activity events |
+| `GET /api/eval/stream`, `GET /api/eval/runs` | run the benchmark (SSE) + run history |
 | `GET /` | dashboard |
 
 ## Benchmarking

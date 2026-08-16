@@ -1,6 +1,17 @@
 import { useState } from "react";
-import { Check, Copy, MessageSquareText, Wifi, WifiOff } from "lucide-react";
-import { useHealth } from "../lib/hooks";
+import {
+  Check,
+  CheckCircle2,
+  Circle,
+  Clock,
+  Copy,
+  MessageSquareText,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
+import { useConnections, useHealth } from "../lib/hooks";
+import { timeAgo } from "../lib/format";
+import type { ActiveSession, ClientSeen } from "../lib/types";
 
 /**
  * All connection URLs derive from the page's own origin, so the
@@ -10,50 +21,98 @@ import { useHealth } from "../lib/hooks";
 const ORIGIN = window.location.origin;
 
 interface Snippet {
+  id: string;
   title: string;
   caption: string;
   code: string;
+  /** Matches this card against MCP clientInfo names. */
+  matcher: RegExp;
 }
 
 const SNIPPETS: Snippet[] = [
   {
+    id: "cursor",
     title: "Cursor",
     caption:
       "Save as .cursor/mcp.json in your workspace — Cursor picks it up automatically and asks you to approve the server.",
-    code: JSON.stringify(
-      { mcpServers: { nodus: { url: `${ORIGIN}/sse` } } },
-      null,
-      2
-    ),
+    code: JSON.stringify({ mcpServers: { nodus: { url: `${ORIGIN}/sse` } } }, null, 2),
+    matcher: /cursor/i,
   },
   {
+    id: "claude-code",
     title: "Claude Code",
     caption: "One command in your terminal — registers Nodus for the current project.",
     code: `claude mcp add --transport sse nodus ${ORIGIN}/sse`,
+    matcher: /claude[\s_-]?code/i,
   },
   {
+    id: "codex",
     title: "Codex (CLI or app)",
     caption: "One command — Codex connects over the modern streamable HTTP transport.",
     code: `codex mcp add nodus --url ${ORIGIN}/mcp`,
+    matcher: /codex/i,
   },
   {
+    id: "claude-desktop",
     title: "Claude Desktop",
     caption:
       "One command, run inside this repo — it finds the app's config on macOS, Windows, or Linux, backs it up, and adds Nodus. Then fully quit and reopen Claude Desktop.",
     code: `npm run connect:claude-desktop -- --url ${ORIGIN}/sse`,
+    matcher: /claude|mcp-remote/i,
   },
 ];
 
-const TRY_IT: Array<{ where: string; prompt: string }> = [
-  {
-    where: "In one connected tool",
-    prompt: 'Save to nodus: the active task is "fixing the login bug".',
-  },
-  {
-    where: "In any other connected tool",
-    prompt: "What does nodus say the active task is?",
-  },
-];
+/** First card whose matcher hits, in declaration order (most specific first). */
+function matchCard(clientName: string): string | null {
+  for (const snippet of SNIPPETS) {
+    if (snippet.matcher.test(clientName)) return snippet.id;
+  }
+  return null;
+}
+
+type CardStatus =
+  | { kind: "connected" }
+  | { kind: "seen"; lastSeen: string }
+  | { kind: "waiting" };
+
+function cardStatus(
+  id: string,
+  sessions: ActiveSession[],
+  seen: ClientSeen[]
+): CardStatus {
+  const activeMatch = sessions.some(
+    (s) => s.client && matchCard(s.client.name) === id
+  );
+  if (activeMatch) return { kind: "connected" };
+  const seenMatch = seen.find((c) => matchCard(c.name) === id);
+  if (seenMatch) return { kind: "seen", lastSeen: seenMatch.last_seen };
+  return { kind: "waiting" };
+}
+
+function StatusPill({ status }: { status: CardStatus }) {
+  if (status.kind === "connected") {
+    return (
+      <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
+        <CheckCircle2 className="h-3.5 w-3.5" /> Connected
+      </span>
+    );
+  }
+  if (status.kind === "seen") {
+    return (
+      <span
+        className="flex items-center gap-1.5 rounded-full bg-neutral-700/40 px-2.5 py-1 text-xs text-neutral-300"
+        title="This client has connected before but has no session open right now"
+      >
+        <Clock className="h-3.5 w-3.5" /> Last seen {timeAgo(status.lastSeen)}
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 rounded-full bg-neutral-800/60 px-2.5 py-1 text-xs text-neutral-500">
+      <Circle className="h-3 w-3" /> Not connected yet
+    </span>
+  );
+}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -82,9 +141,8 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function StatusStrip() {
-  const { online, health } = useHealth();
-  const clients = health ? health.sessions.sse + health.sessions.http : 0;
+function StatusStrip({ sessions }: { sessions: ActiveSession[] }) {
+  const { online } = useHealth();
 
   if (!online) {
     return (
@@ -101,15 +159,20 @@ function StatusStrip() {
     );
   }
 
+  const names = [
+    ...new Set(sessions.filter((s) => s.client).map((s) => s.client!.name)),
+  ];
+
   return (
     <div className="mt-5 flex items-center gap-3 rounded-xl border border-emerald-900/60 bg-emerald-950/20 px-4 py-3">
       <Wifi className="h-4 w-4 shrink-0 text-emerald-400" />
       <div className="text-sm text-emerald-200">
         Server online at <span className="font-mono text-xs">{ORIGIN}</span>
-        {clients > 0 && (
+        {names.length > 0 && (
           <>
             {" "}
-            — {clients} AI client{clients === 1 ? "" : "s"} connected right now
+            — connected now:{" "}
+            <span className="font-medium">{names.join(", ")}</span>
           </>
         )}
       </div>
@@ -130,7 +193,20 @@ function StepHeading({ step, title }: { step: number; title: string }) {
   );
 }
 
+const TRY_IT: Array<{ where: string; prompt: string }> = [
+  {
+    where: "In one connected tool",
+    prompt: 'Save to nodus: the active task is "fixing the login bug".',
+  },
+  {
+    where: "In any other connected tool",
+    prompt: "What does nodus say the active task is?",
+  },
+];
+
 export default function ConnectView() {
+  const { sessions, seen } = useConnections();
+
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight text-neutral-100">
@@ -138,18 +214,11 @@ export default function ConnectView() {
       </h1>
       <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">
         Nodus gives your AI tools one shared, persistent memory. Connect any of
-        them below — everything they save with{" "}
-        <code className="rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-xs text-cyan-300">
-          update_nodus_state
-        </code>{" "}
-        is readable by all the others via{" "}
-        <code className="rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-xs text-cyan-300">
-          query_nodus_state
-        </code>
-        .
+        them below — the cards check themselves off as each tool connects for
+        the first time.
       </p>
 
-      <StatusStrip />
+      <StatusStrip sessions={sessions} />
 
       <StepHeading step={1} title="Connect your AI tools" />
       <p className="mt-2 text-sm text-neutral-500">
@@ -158,13 +227,18 @@ export default function ConnectView() {
       <div className="mt-4 flex flex-col gap-4">
         {SNIPPETS.map((s) => (
           <section
-            key={s.title}
+            key={s.id}
             className="rounded-xl border border-neutral-800 bg-neutral-900/50"
           >
             <div className="flex items-center justify-between gap-4 border-b border-neutral-800 px-4 py-3">
-              <div>
-                <div className="text-sm font-medium text-neutral-100">{s.title}</div>
-                <div className="mt-0.5 text-xs text-neutral-500">{s.caption}</div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm font-medium text-neutral-100">
+                    {s.title}
+                  </span>
+                  <StatusPill status={cardStatus(s.id, sessions, seen)} />
+                </div>
+                <div className="mt-1 text-xs text-neutral-500">{s.caption}</div>
               </div>
               <CopyButton text={s.code} />
             </div>
@@ -197,10 +271,10 @@ export default function ConnectView() {
         ))}
       </div>
       <p className="mt-4 text-sm text-neutral-500">
-        Watch the entries appear in the{" "}
-        <span className="text-neutral-300">Memory Explorer</span> tab, and
-        benchmark the server any time from{" "}
-        <span className="text-neutral-300">Eval Harness</span>.
+        Every write shows up live in the{" "}
+        <span className="text-neutral-300">Activity</span> tab, and the full
+        store is browsable in{" "}
+        <span className="text-neutral-300">Memory Explorer</span>.
       </p>
     </div>
   );

@@ -18,6 +18,26 @@ export interface ContextNode {
   value: string;
   created_at: string;
   updated_at: string;
+  /** Client that last wrote this node (MCP clientInfo name, "dashboard", …). */
+  updated_by: string | null;
+}
+
+export interface ClientSeen {
+  name: string;
+  version: string;
+  transport: string;
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface EvalRunRecord {
+  id: number;
+  ran_at: string;
+  passed: number;
+  total: number;
+  avg_latency_ms: number;
+  p95_latency_ms: number;
+  total_payload_bytes: number;
 }
 
 const db: Database.Database = new Database(DB_PATH);
@@ -35,16 +55,39 @@ db.exec(`
     UNIQUE (domain, key)
   );
   CREATE INDEX IF NOT EXISTS idx_context_nodes_domain ON context_nodes (domain);
+  CREATE TABLE IF NOT EXISTS clients_seen (
+    name       TEXT PRIMARY KEY,
+    version    TEXT NOT NULL DEFAULT '',
+    transport  TEXT NOT NULL,
+    first_seen TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_seen  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE TABLE IF NOT EXISTS eval_runs (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    ran_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    passed              INTEGER NOT NULL,
+    total               INTEGER NOT NULL,
+    avg_latency_ms      REAL NOT NULL,
+    p95_latency_ms      REAL NOT NULL,
+    total_payload_bytes INTEGER NOT NULL
+  );
 `);
+
+// Migration: updated_by was added after the first release.
+const columns = db.pragma("table_info(context_nodes)") as Array<{ name: string }>;
+if (!columns.some((c) => c.name === "updated_by")) {
+  db.exec("ALTER TABLE context_nodes ADD COLUMN updated_by TEXT");
+}
 
 // Prepared statements are compiled once and reused for every call.
 // The WHERE clause makes the upsert idempotent: re-sending an identical
 // value is a no-op rather than an updated_at churn.
 const upsertStmt = db.prepare(`
-  INSERT INTO context_nodes (domain, key, value)
-  VALUES (@domain, @key, @value)
+  INSERT INTO context_nodes (domain, key, value, updated_by)
+  VALUES (@domain, @key, @value, @updatedBy)
   ON CONFLICT (domain, key) DO UPDATE SET
     value      = excluded.value,
+    updated_by = excluded.updated_by,
     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE excluded.value <> context_nodes.value
 `);
@@ -72,10 +115,47 @@ const listAllStmt = db.prepare(
   `SELECT * FROM context_nodes ORDER BY domain ASC, updated_at DESC LIMIT ? OFFSET ?`
 );
 
+const listByFilterStmt = db.prepare(`
+  SELECT * FROM context_nodes
+  WHERE (@domain IS NULL OR domain = @domain)
+    AND (@pattern IS NULL OR domain LIKE @pattern ESCAPE '\\'
+         OR key LIKE @pattern ESCAPE '\\' OR value LIKE @pattern ESCAPE '\\')
+  ORDER BY domain ASC, updated_at DESC
+  LIMIT @limit OFFSET @offset
+`);
+
+const getByIdStmt = db.prepare(`SELECT * FROM context_nodes WHERE id = ?`);
+
 const deleteByIdStmt = db.prepare(`DELETE FROM context_nodes WHERE id = ?`);
 
 const countStmt = db.prepare(
   `SELECT COUNT(*) AS total, COUNT(DISTINCT domain) AS domains FROM context_nodes`
+);
+
+const listDomainsStmt = db.prepare(
+  `SELECT DISTINCT domain FROM context_nodes ORDER BY domain ASC`
+);
+
+const upsertClientSeenStmt = db.prepare(`
+  INSERT INTO clients_seen (name, version, transport)
+  VALUES (@name, @version, @transport)
+  ON CONFLICT (name) DO UPDATE SET
+    version   = excluded.version,
+    transport = excluded.transport,
+    last_seen = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+`);
+
+const listClientsSeenStmt = db.prepare(
+  `SELECT * FROM clients_seen ORDER BY last_seen DESC`
+);
+
+const insertEvalRunStmt = db.prepare(`
+  INSERT INTO eval_runs (passed, total, avg_latency_ms, p95_latency_ms, total_payload_bytes)
+  VALUES (@passed, @total, @avgLatencyMs, @p95LatencyMs, @totalPayloadBytes)
+`);
+
+const listEvalRunsStmt = db.prepare(
+  `SELECT * FROM eval_runs ORDER BY id DESC LIMIT ?`
 );
 
 /** Escape LIKE wildcards in user-supplied search text. */
@@ -84,8 +164,13 @@ function escapeLike(term: string): string {
 }
 
 /** Insert or update a context node (idempotent). Returns the stored row. */
-export function upsertNode(domain: string, key: string, value: string): ContextNode {
-  upsertStmt.run({ domain, key, value });
+export function upsertNode(
+  domain: string,
+  key: string,
+  value: string,
+  updatedBy: string | null = null
+): ContextNode {
+  upsertStmt.run({ domain, key, value, updatedBy });
   const node = getByDomainKeyStmt.get(domain, key) as ContextNode | undefined;
   if (!node) {
     throw new Error(`Upsert failed to persist ${domain}/${key}`);
@@ -114,14 +199,71 @@ export function deleteNode(domain: string, key: string): boolean {
   return deleteStmt.run(domain, key).changes > 0;
 }
 
-/** A page of nodes, grouped by domain, newest first within each. */
-export function listAllNodes(limit = 500, offset = 0): ContextNode[] {
-  return listAllStmt.all(limit, offset) as ContextNode[];
+export interface NodeFilter {
+  domain?: string;
+  q?: string;
+  limit: number;
+  offset: number;
+}
+
+/** A page of nodes, optionally filtered by domain and/or search term. */
+export function listNodes(filter: NodeFilter): ContextNode[] {
+  const pattern = filter.q ? `%${escapeLike(filter.q)}%` : null;
+  if (!filter.domain && !pattern) {
+    return listAllStmt.all(filter.limit, filter.offset) as ContextNode[];
+  }
+  return listByFilterStmt.all({
+    domain: filter.domain ?? null,
+    pattern,
+    limit: filter.limit,
+    offset: filter.offset,
+  }) as ContextNode[];
+}
+
+/** Every node — used by export. */
+export function exportAllNodes(): ContextNode[] {
+  return listAllStmt.all(Number.MAX_SAFE_INTEGER, 0) as ContextNode[];
+}
+
+/** Single node lookup by numeric id. */
+export function getNodeById(id: number): ContextNode | undefined {
+  return getByIdStmt.get(id) as ContextNode | undefined;
 }
 
 /** Total number of stored nodes. */
 export function countNodes(): number {
   return (countStmt.get() as { total: number }).total;
+}
+
+/** Distinct domain names, alphabetical. */
+export function listDomains(): string[] {
+  return (listDomainsStmt.all() as Array<{ domain: string }>).map((r) => r.domain);
+}
+
+/** Record that an MCP client connected (upserts by client name). */
+export function recordClientSeen(name: string, version: string, transport: string): void {
+  upsertClientSeenStmt.run({ name, version, transport });
+}
+
+/** Clients that have ever connected, most recent first. */
+export function listClientsSeen(): ClientSeen[] {
+  return listClientsSeenStmt.all() as ClientSeen[];
+}
+
+/** Persist an eval run summary for the history view. */
+export function insertEvalRun(run: {
+  passed: number;
+  total: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  totalPayloadBytes: number;
+}): void {
+  insertEvalRunStmt.run(run);
+}
+
+/** Most recent eval runs, newest first. */
+export function listEvalRuns(limit = 20): EvalRunRecord[] {
+  return listEvalRunsStmt.all(limit) as EvalRunRecord[];
 }
 
 /** Delete a node by numeric id. Returns true if a row was removed. */

@@ -1,4 +1,4 @@
-import { CheckCircle2, Play, XCircle } from "lucide-react";
+import { CheckCircle2, History, Play, XCircle } from "lucide-react";
 import {
   CartesianGrid,
   Legend,
@@ -9,10 +9,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useEvalStream } from "../lib/hooks";
+import { useEvalRuns, useEvalStream } from "../lib/hooks";
+import { formatBytes, timeAgo } from "../lib/format";
 
 export default function EvalView() {
-  const { rows, summary, state, error: errorMsg, run } = useEvalStream();
+  const { runs, refresh: refreshRuns } = useEvalRuns();
+  const { rows, summary, state, error: errorMsg, run } = useEvalStream(refreshRuns);
 
   const chartData = rows.map((r) => ({
     case: `#${r.index}`,
@@ -131,6 +133,52 @@ export default function EvalView() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {runs.length > 1 && (
+        <div className="mt-6 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
+          <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-neutral-500">
+            <History className="h-3.5 w-3.5" /> Run history — avg latency
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <LineChart
+              data={[...runs].reverse().map((r) => ({
+                run: timeAgo(r.ran_at),
+                "avg latency (ms)": r.avg_latency_ms,
+              }))}
+              margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+            >
+              <CartesianGrid stroke="#262626" strokeDasharray="3 3" />
+              <XAxis dataKey="run" stroke="#737373" fontSize={11} />
+              <YAxis stroke="#22d3ee" fontSize={11} width={40} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#171717",
+                  border: "1px solid #404040",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                labelStyle={{ color: "#e5e5e5" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="avg latency (ms)"
+                stroke="#22d3ee"
+                strokeWidth={2}
+                dot={{ r: 2.5 }}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
+            {runs.slice(0, 5).map((r) => (
+              <span key={r.id} title={new Date(r.ran_at).toLocaleString()}>
+                {timeAgo(r.ran_at)}: {r.passed}/{r.total} passed ·{" "}
+                {r.avg_latency_ms} ms avg · {formatBytes(r.total_payload_bytes)}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

@@ -1,16 +1,42 @@
 import { useState } from "react";
-import { Plug, Database, Activity, BrainCircuit } from "lucide-react";
+import { Activity, BrainCircuit, Database, Plug, Radio } from "lucide-react";
 import ConnectView from "./views/ConnectView";
 import ExplorerView from "./views/ExplorerView";
+import ActivityView from "./views/ActivityView";
 import EvalView from "./views/EvalView";
+import { useHealth } from "./lib/hooks";
 
-type Tab = "connect" | "explorer" | "eval";
+type Tab = "connect" | "explorer" | "activity" | "eval";
 
 const TABS: Array<{ id: Tab; label: string; icon: typeof Plug }> = [
   { id: "connect", label: "Connect", icon: Plug },
   { id: "explorer", label: "Memory Explorer", icon: Database },
+  { id: "activity", label: "Activity", icon: Radio },
   { id: "eval", label: "Eval Harness", icon: Activity },
 ];
+
+function SidebarFooter() {
+  const { online, health } = useHealth();
+  const clients = health ? health.sessions.sse + health.sessions.http : 0;
+
+  return (
+    <div className="mt-auto flex items-center gap-2 px-5 py-4 text-[11px] leading-relaxed text-neutral-600">
+      <span
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+          online ? "bg-emerald-400" : "bg-red-500"
+        }`}
+      />
+      {online ? (
+        <span>
+          {clients > 0 ? `${clients} client${clients === 1 ? "" : "s"} connected` : "online"}{" "}
+          · <span className="font-mono text-neutral-500">{window.location.host}</span>
+        </span>
+      ) : (
+        <span>server unreachable</span>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("connect");
@@ -48,10 +74,7 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="mt-auto px-5 py-4 text-[11px] leading-relaxed text-neutral-600">
-          MCP server on{" "}
-          <span className="font-mono text-neutral-500">{window.location.host}</span>
-        </div>
+        <SidebarFooter />
       </aside>
 
       {/* Content */}
@@ -59,6 +82,7 @@ export default function App() {
         <div className="mx-auto max-w-4xl px-8 py-8">
           {tab === "connect" && <ConnectView />}
           {tab === "explorer" && <ExplorerView />}
+          {tab === "activity" && <ActivityView />}
           {tab === "eval" && <EvalView />}
         </div>
       </main>
