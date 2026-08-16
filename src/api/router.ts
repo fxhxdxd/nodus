@@ -12,6 +12,7 @@ import { listAllNodes, countNodes, deleteNodeById, getStats } from "../db";
 import { runEvalSuite } from "../eval/suite";
 import { PORT } from "../config";
 import { errorMessage, logger } from "../logger";
+import type { McpSessionStats } from "../mcp/transports";
 
 /** Parse a query parameter as a bounded non-negative integer. */
 function intParam(
@@ -26,8 +27,17 @@ function intParam(
   return value;
 }
 
-export function createApiRouter(): Router {
+export function createApiRouter(sessions: McpSessionStats): Router {
   const api = express.Router();
+
+  // Mirror of GET /health under /api so the dashboard (including the Vite
+  // dev proxy, which only forwards /api and the MCP routes) can read it.
+  api.get("/health", (_req: Request, res: Response) => {
+    res.json({
+      status: "ok",
+      sessions: { sse: sessions.sse, http: sessions.http },
+    });
+  });
 
   api.get("/nodes", (req: Request, res: Response) => {
     const limit = intParam(req.query.limit, 500, 1, 1000);

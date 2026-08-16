@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "generate-configs": "node scripts/generate-configs.js",
     "build:ui": "npm --prefix ui run build",
-    "build": "tsc && npm run build:ui"
+    "build": "tsc && npm run build:ui",
+    "postinstall": "npm --prefix ui install"
   },
   "type": "commonjs",
   "dependencies": {

@@ -26,6 +26,14 @@ export interface NodesPage {
   offset: number;
 }
 
+export interface HealthStatus {
+  status: string;
+  sessions: {
+    sse: number;
+    http: number;
+  };
+}
+
 export interface EvalRow {
   index: number;
   name: string;

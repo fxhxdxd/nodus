@@ -29,7 +29,7 @@ export function createApp(): Express {
     });
   });
 
-  app.use("/api", createApiRouter());
+  app.use("/api", createApiRouter(sessions));
 
   if (UI_DIST_PATH) {
     app.use(express.static(UI_DIST_PATH));

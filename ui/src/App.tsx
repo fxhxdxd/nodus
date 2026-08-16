@@ -50,7 +50,7 @@ export default function App() {
 
         <div className="mt-auto px-5 py-4 text-[11px] leading-relaxed text-neutral-600">
           MCP server on{" "}
-          <span className="font-mono text-neutral-500">localhost:3939</span>
+          <span className="font-mono text-neutral-500">{window.location.host}</span>
         </div>
       </aside>
 

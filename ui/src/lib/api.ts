@@ -1,4 +1,4 @@
-import type { NodesPage, StoreStats } from "./types";
+import type { HealthStatus, NodesPage, StoreStats } from "./types";
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, init);
@@ -14,6 +14,10 @@ export function fetchNodes(limit = 500, offset = 0): Promise<NodesPage> {
 
 export function fetchStats(): Promise<StoreStats> {
   return request<StoreStats>("/api/stats");
+}
+
+export function fetchHealth(): Promise<HealthStatus> {
+  return request<HealthStatus>("/api/health");
 }
 
 export async function deleteNode(id: number): Promise<void> {

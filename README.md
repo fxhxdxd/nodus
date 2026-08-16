@@ -1,13 +1,55 @@
 # Nodus
 
-Cross-platform MCP context server: a shared, persistent memory brain for
-**Cursor**, **Claude Code**, and **Codex** (or any MCP-capable agent), backed
-by SQLite and served over both MCP transports, with a built-in web dashboard.
+**One shared, persistent memory for all your AI coding tools.**
 
-Ask one AI surface to remember something; every other connected surface can
-read it.
+Nodus is a local [MCP](https://modelcontextprotocol.io) server that Cursor,
+Claude Code, Codex, and any other MCP-capable agent can connect to at the
+same time. Ask one tool to remember something — every other tool can recall
+it. Context lives in SQLite on your machine and survives restarts, session
+resets, and switching between tools.
 
-## Architecture
+A built-in web dashboard lets you browse the shared memory, delete stale
+entries, benchmark the server, and copy ready-made connection snippets.
+
+## Setup
+
+**Prerequisite:** Node.js 20 or newer.
+
+```bash
+git clone https://github.com/fxhxdxd/nodus.git
+cd nodus
+npm install        # installs server + dashboard dependencies
+npm run build      # compiles the server and builds the dashboard
+npm start          # starts everything on http://localhost:3939
+```
+
+Then open **http://localhost:3939** in your browser. The **Connect** tab
+walks you through hooking up each AI tool with copy-paste snippets that
+already point at the right address — that's the whole setup.
+
+> Different port? `NODUS_PORT=4000 npm start` — the dashboard and its
+> snippets adapt automatically.
+
+### Connect your tools (quick reference)
+
+The dashboard shows these with copy buttons, pre-filled for your host/port:
+
+| Tool | How |
+| --- | --- |
+| **Cursor** | This repo ships `.cursor/mcp.json` — open the repo in Cursor and approve the server. For other workspaces, copy that file in. |
+| **Claude Code** | `claude mcp add --transport sse nodus http://localhost:3939/sse` |
+| **Codex** (CLI or app) | `codex mcp add nodus --url http://localhost:3939/mcp` |
+| **Claude Desktop** | Merge `examples/claude_desktop_config.json` into the app's config file, restart the app |
+
+### Try it
+
+1. In one connected tool: *“Save to nodus: the active task is fixing the login bug.”*
+2. In a different tool: *“What does nodus say the active task is?”*
+
+The second tool answers from the first tool's memory. Watch entries appear
+live in the dashboard's **Memory Explorer**.
+
+## How it works
 
 ```
 ┌─────────┐  ┌─────────────┐  ┌───────┐        ┌─────────────────┐
@@ -16,7 +58,7 @@ read it.
      │ SSE          │ SSE         │ streamable HTTP     │ REST + static
      ▼              ▼             ▼                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Express server (:3939)                       │
+│                        Express server                           │
 │  /sse + /messages   /mcp        /api/*        / (dashboard)     │
 │         └──────────────┴─── MCP tools ───┐                      │
 │              query_nodus_state           │                      │
@@ -31,7 +73,10 @@ pay a minimal, constant context cost no matter how much is stored:
 | Tool | Input | Purpose |
 | --- | --- | --- |
 | `query_nodus_state` | `{ domain, query }` | Read context. Exact key match, `"*"` lists a domain, anything else is a substring search. |
-| `update_nodus_state` | `{ domain, key, value }` | Upsert context by `(domain, key)`. |
+| `update_nodus_state` | `{ domain, key, value }` | Upsert context by `(domain, key)`. Idempotent. |
+
+Context is organized into free-form **domains** (`tasks`, `notes`,
+`snippets`, or anything you invent) holding **key → value** entries.
 
 ## Project layout
 
@@ -57,59 +102,31 @@ examples/           generated client config samples
 data/               SQLite database (gitignored, created on boot)
 ```
 
-## Quickstart
-
-```bash
-npm install
-npm --prefix ui install
-npm run build        # compile backend (tsc) + build dashboard (vite)
-npm start            # MCP endpoints + dashboard on http://localhost:3939
-```
-
-Open **http://localhost:3939** for the dashboard:
-
-- **Connect** — copyable install snippets for every client
-- **Memory Explorer** — live view of the store, with delete controls
-- **Eval Harness** — one-click benchmark with a live latency/payload chart
-
-## Connecting clients
-
-| Client | Transport | Setup |
-| --- | --- | --- |
-| Cursor | SSE | `.cursor/mcp.json` in this repo (auto-detected for this workspace) |
-| Claude Code | SSE | `claude mcp add --transport sse nodus http://localhost:3939/sse` |
-| Codex (CLI or app) | Streamable HTTP | `codex mcp add nodus --url http://localhost:3939/mcp` |
-| Claude Desktop | stdio → SSE bridge | merge `examples/claude_desktop_config.json` into the app's config |
-
-Regenerate the config files with `npm run generate-configs`. For raw-protocol
-integration (custom agents), the server speaks standard MCP: legacy HTTP+SSE
-on `GET /sse` + `POST /messages?sessionId=...`, and streamable HTTP on `/mcp`.
-
 ## HTTP surface
 
 | Route | Purpose |
 | --- | --- |
 | `GET /sse`, `POST /messages` | MCP over legacy HTTP+SSE |
 | `ALL /mcp` | MCP over streamable HTTP |
-| `GET /health` | liveness + active session counts |
-| `GET /api/nodes` | list all context nodes |
+| `GET /health`, `GET /api/health` | liveness + active session counts |
+| `GET /api/nodes?limit&offset` | paginated context nodes |
 | `DELETE /api/nodes/:id` | delete a node |
 | `GET /api/stats` | node/domain counts + DB size |
 | `GET /api/eval/stream` | run the benchmark, streamed as SSE |
-| `GET /` | dashboard (built `ui/dist`) |
+| `GET /` | dashboard |
 
-## Evaluation
+## Benchmarking
 
 `npm run eval` (server must be running) connects as a real MCP client and
-runs the 10-case suite, reporting per-call round-trip latency and the exact
-byte-size of each JSON payload, plus summary percentiles. The dashboard's
-Eval Harness tab streams the same suite via `/api/eval/stream`.
+runs a 10-case suite, reporting per-call round-trip latency and exact
+payload byte-sizes, plus percentiles. The dashboard's **Eval Harness** tab
+runs the same suite with a live chart.
 
 ## Development
 
 ```bash
-npm run dev                # backend with tsx (same as start)
-npm --prefix ui run dev    # dashboard with hot reload on :5173 (proxies /api + MCP)
+npm run dev                # backend via tsx
+npm --prefix ui run dev    # dashboard with hot reload on :5173 (proxies to the server)
 npm run typecheck          # strict TS across the backend
 ```
 
@@ -122,7 +139,7 @@ npm run typecheck          # strict TS across the backend
 | `NODUS_DB_PATH` | `<data dir>/nodus.db` | exact DB file path |
 | `NODUS_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
 
-## Always-on serving (macOS)
+## Keep it always on (macOS, optional)
 
 Clients can only connect while the server runs. To start it at login and
 keep it alive:
@@ -132,5 +149,6 @@ cp deploy/com.nodus.server.plist ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nodus.server.plist
 ```
 
-Logs: `~/Library/Logs/nodus.log`. Remove with
-`launchctl bootout gui/$(id -u)/com.nodus.server`.
+> The plist assumes the repo lives at `~/Desktop/nodus` — edit the paths
+> inside if you cloned elsewhere. Logs: `~/Library/Logs/nodus.log`. Remove
+> with `launchctl bootout gui/$(id -u)/com.nodus.server`.

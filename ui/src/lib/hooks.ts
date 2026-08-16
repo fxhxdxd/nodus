@@ -4,8 +4,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { deleteNode, fetchNodes, fetchStats, EVAL_STREAM_URL } from "./api";
-import type { ContextNode, EvalRow, EvalSummary, StoreStats } from "./types";
+import { deleteNode, fetchHealth, fetchNodes, fetchStats, EVAL_STREAM_URL } from "./api";
+import type { ContextNode, EvalRow, EvalSummary, HealthStatus, StoreStats } from "./types";
 
 function toMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -61,6 +61,42 @@ export function useStore(): StoreState {
   );
 
   return { nodes, stats, loading, error, refresh, removeNode };
+}
+
+// ---------------------------------------------------------------------------
+// Server health
+// ---------------------------------------------------------------------------
+
+export interface HealthState {
+  online: boolean;
+  /** Undefined until the first response arrives. */
+  health: HealthStatus | null;
+}
+
+export function useHealth(pollMs = 5000): HealthState {
+  const [state, setState] = useState<HealthState>({ online: true, health: null });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const health = await fetchHealth();
+        if (!cancelled) setState({ online: true, health });
+      } catch {
+        if (!cancelled) setState({ online: false, health: null });
+      }
+    };
+
+    void check();
+    const timer = setInterval(() => void check(), pollMs);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [pollMs]);
+
+  return state;
 }
 
 // ---------------------------------------------------------------------------
