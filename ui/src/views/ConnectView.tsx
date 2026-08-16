@@ -19,7 +19,7 @@ const SNIPPETS: Snippet[] = [
   {
     title: "Cursor",
     caption:
-      "Save as .cursor/mcp.json in any workspace (this repo already includes one). Cursor picks it up automatically.",
+      "Save as .cursor/mcp.json in your workspace — Cursor picks it up automatically and asks you to approve the server.",
     code: JSON.stringify(
       { mcpServers: { nodus: { url: `${ORIGIN}/sse` } } },
       null,

@@ -36,7 +36,7 @@ The dashboard shows these with copy buttons, pre-filled for your host/port:
 
 | Tool | How |
 | --- | --- |
-| **Cursor** | This repo ships `.cursor/mcp.json` — open the repo in Cursor and approve the server. For other workspaces, copy that file in. |
+| **Cursor** | `npm run generate-configs` writes `.cursor/mcp.json` for this workspace (Cursor detects it automatically) — or copy the snippet from the dashboard's Connect tab into any workspace |
 | **Claude Code** | `claude mcp add --transport sse nodus http://localhost:3939/sse` |
 | **Codex** (CLI or app) | `codex mcp add nodus --url http://localhost:3939/mcp` |
 | **Claude Desktop** | `npm run connect:claude-desktop` — merges the app's config for you (macOS/Windows/Linux, backup kept), then fully quit and reopen the app |

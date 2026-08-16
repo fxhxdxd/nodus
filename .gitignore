@@ -12,3 +12,6 @@ data/
 
 # Local agent state
 .codex/
+
+# Local editor/agent config
+.cursor/
