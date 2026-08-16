@@ -136,6 +136,17 @@ const listDomainsStmt = db.prepare(
   `SELECT DISTINCT domain FROM context_nodes ORDER BY domain ASC`
 );
 
+const domainCountsStmt = db.prepare(
+  `SELECT domain, COUNT(*) AS entries FROM context_nodes GROUP BY domain ORDER BY domain ASC`
+);
+
+const countByFilterStmt = db.prepare(`
+  SELECT COUNT(*) AS total FROM context_nodes
+  WHERE (@domain IS NULL OR domain = @domain)
+    AND (@pattern IS NULL OR domain LIKE @pattern ESCAPE '\\'
+         OR key LIKE @pattern ESCAPE '\\' OR value LIKE @pattern ESCAPE '\\')
+`);
+
 const upsertClientSeenStmt = db.prepare(`
   INSERT INTO clients_seen (name, version, transport)
   VALUES (@name, @version, @transport)
@@ -238,6 +249,25 @@ export function countNodes(): number {
 /** Distinct domain names, alphabetical. */
 export function listDomains(): string[] {
   return (listDomainsStmt.all() as Array<{ domain: string }>).map((r) => r.domain);
+}
+
+export interface DomainCount {
+  domain: string;
+  entries: number;
+}
+
+/** Every domain with its entry count, alphabetical. */
+export function listDomainCounts(): DomainCount[] {
+  return domainCountsStmt.all() as DomainCount[];
+}
+
+/** Count of nodes matching an optional domain and/or search term. */
+export function countByFilter(domain?: string, q?: string): number {
+  const row = countByFilterStmt.get({
+    domain: domain ?? null,
+    pattern: q ? `%${escapeLike(q)}%` : null,
+  }) as { total: number };
+  return row.total;
 }
 
 /** Record that an MCP client connected (upserts by client name). */

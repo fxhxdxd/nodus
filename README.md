@@ -63,6 +63,8 @@ location directly.
 
 1. In one connected tool: *“Save to nodus: the active task is fixing the login bug.”*
 2. In a different tool: *“What does nodus say the active task is?”*
+3. Later, from anywhere: *“Search nodus for anything about login.”* — global
+   search works without knowing which domain the context lives in.
 
 The second tool answers from the first tool's memory. Watch the write land
 in real time in the dashboard's **Activity** tab, and browse, search, edit,
@@ -87,16 +89,21 @@ wrote it). One-click JSON **export/import** keeps backups easy.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**The Registry Pattern.** Exactly two MCP tools are exposed, so LLM clients
-pay a minimal, constant context cost no matter how much is stored:
+**The Registry Pattern.** A fixed, four-tool surface — the tool count never
+grows with the store, so LLM clients pay a constant context cost no matter
+how much is remembered:
 
 | Tool | Input | Purpose |
 | --- | --- | --- |
-| `query_nodus_state` | `{ domain, query }` | Read context. Exact key match, `"*"` lists a domain, anything else is a substring search. |
+| `query_nodus_state` | `{ domain?, query, limit? }` | Read context. **Omit `domain` to search every domain at once.** With a domain: exact key match, `"*"` lists it, other text searches it. Responses include `total`/`truncated`. |
 | `update_nodus_state` | `{ domain, key, value }` | Upsert context by `(domain, key)`. Idempotent. |
+| `delete_nodus_state` | `{ domain, key }` | Remove one entry. A separate tool so clients can permission-gate deletion independently of writes. |
+| `list_nodus_domains` | `{}` | Domain index with entry counts — "where should I look?" in one call. |
 
-Context is organized into free-form **domains** (`tasks`, `notes`,
-`snippets`, or anything you invent) holding **key → value** entries.
+Tool descriptions are generated per connection with the **live domain
+list**, so agents see the real namespace before their first call instead
+of guessing. Context is organized into free-form **domains** (`tasks`,
+`notes`, or anything an agent invents) holding **key → value** entries.
 
 ## Project layout
 

@@ -15,7 +15,11 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 export interface TestCase {
   name: string;
-  tool: "query_nodus_state" | "update_nodus_state";
+  tool:
+    | "query_nodus_state"
+    | "update_nodus_state"
+    | "delete_nodus_state"
+    | "list_nodus_domains";
   args: Record<string, string>;
   /** Substring that must appear in the decoded text payload for a PASS. */
   expect: string;
@@ -91,6 +95,47 @@ export const SUITE: TestCase[] = [
     tool: "query_nodus_state",
     args: { domain: "tasks", query: "does_not_exist_xyz" },
     expect: '"matches":[]',
+  },
+  // --- Discoverability: find context without knowing its domain ----------
+  {
+    name: "Store a fact in an obscure domain",
+    tool: "update_nodus_state",
+    args: {
+      domain: "eval_obscure_domain",
+      key: "de_shaw_prep",
+      value: "D.E. Shaw interview prep: probability, market making, mental math.",
+    },
+    expect: '"ok":true',
+  },
+  {
+    name: "Global search finds it (no domain given)",
+    tool: "query_nodus_state",
+    args: { query: "shaw" },
+    expect: "de_shaw_prep",
+  },
+  {
+    name: "Domain index includes the obscure domain",
+    tool: "query_nodus_state",
+    args: { query: "*" },
+    expect: '"eval_obscure_domain"',
+  },
+  {
+    name: "list_nodus_domains names it with a count",
+    tool: "list_nodus_domains",
+    args: {},
+    expect: '"eval_obscure_domain"',
+  },
+  {
+    name: "Delete it via the explicit delete tool",
+    tool: "delete_nodus_state",
+    args: { domain: "eval_obscure_domain", key: "de_shaw_prep" },
+    expect: '"deleted":true',
+  },
+  {
+    name: "Deleted entry is gone from global search",
+    tool: "query_nodus_state",
+    args: { query: "de_shaw_prep" },
+    expect: '"total":0',
   },
 ];
 

@@ -32,8 +32,8 @@ async function main(): Promise<void> {
   for await (const event of runEvalSuite(SERVER_URL)) {
     if (event.type === "start") {
       console.log(`Registered tools (${event.tools.length}): ${event.tools.join(", ")}`);
-      if (event.tools.length !== 2) {
-        console.warn("WARNING: Registry Pattern violated — expected exactly 2 tools.");
+      if (event.tools.length !== 4) {
+        console.warn("WARNING: Registry Pattern violated — expected the fixed 4-tool surface.");
       }
       console.log(`Tool schema payload (one-time context cost): ${event.schemaBytes} bytes\n`);
     } else if (event.type === "row") {
