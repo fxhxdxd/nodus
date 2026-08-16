@@ -47,9 +47,14 @@ export function createNodusServer(): McpServer {
         "pass '*' to list everything in the domain; any other text performs " +
         "a substring search over keys and values.",
       inputSchema: {
-        domain: z.string().min(1).describe("Logical namespace to read from"),
+        domain: z
+          .string()
+          .min(1)
+          .max(128)
+          .describe("Logical namespace to read from"),
         query: z
           .string()
+          .max(1024)
           .describe("Exact key, '*' for all entries, or a search term"),
       },
     },
@@ -81,9 +86,16 @@ export function createNodusServer(): McpServer {
         "surfaces (Cursor, Claude Code, Codex) can read it. Upserts by " +
         "(domain, key): an existing entry with the same key is overwritten.",
       inputSchema: {
-        domain: z.string().min(1).describe("Logical namespace to write to"),
-        key: z.string().min(1).describe("Identifier within the domain"),
-        value: z.string().describe("Content to store (plain text or JSON)"),
+        domain: z
+          .string()
+          .min(1)
+          .max(128)
+          .describe("Logical namespace to write to"),
+        key: z.string().min(1).max(256).describe("Identifier within the domain"),
+        value: z
+          .string()
+          .max(65536)
+          .describe("Content to store (plain text or JSON), up to 64 KB"),
       },
     },
     async ({ domain, key, value }) => {

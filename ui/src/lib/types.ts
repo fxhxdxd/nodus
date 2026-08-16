@@ -19,6 +19,13 @@ export interface StoreStats {
   dbSizeBytes: number;
 }
 
+export interface NodesPage {
+  nodes: ContextNode[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface EvalRow {
   index: number;
   name: string;

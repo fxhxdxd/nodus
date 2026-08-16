@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Play, XCircle } from "lucide-react";
 import {
   CartesianGrid,
@@ -10,60 +9,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-
-import { EVAL_STREAM_URL } from "../lib/api";
-import type { EvalRow, EvalSummary } from "../lib/types";
-
-type RunState = "idle" | "running" | "done" | "error";
+import { useEvalStream } from "../lib/hooks";
 
 export default function EvalView() {
-  const [rows, setRows] = useState<EvalRow[]>([]);
-  const [summary, setSummary] = useState<EvalSummary | null>(null);
-  const [state, setState] = useState<RunState>("idle");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const sourceRef = useRef<EventSource | null>(null);
-
-  // Close any live stream when the view unmounts.
-  useEffect(() => () => sourceRef.current?.close(), []);
-
-  const run = () => {
-    sourceRef.current?.close();
-    setRows([]);
-    setSummary(null);
-    setErrorMsg(null);
-    setState("running");
-
-    const source = new EventSource(EVAL_STREAM_URL);
-    sourceRef.current = source;
-
-    source.addEventListener("row", (e) => {
-      const { row } = JSON.parse((e as MessageEvent).data) as { row: EvalRow };
-      setRows((prev) => [...prev, row]);
-    });
-
-    source.addEventListener("done", (e) => {
-      const { summary } = JSON.parse((e as MessageEvent).data) as {
-        summary: EvalSummary;
-      };
-      setSummary(summary);
-      setState("done");
-      source.close();
-    });
-
-    source.addEventListener("error", (e) => {
-      // Server-sent error event carries data; transport errors do not.
-      const data = (e as MessageEvent).data as string | undefined;
-      if (data) {
-        setErrorMsg((JSON.parse(data) as { message: string }).message);
-      } else if (source.readyState === EventSource.CLOSED) {
-        setErrorMsg("Stream closed unexpectedly — is the server running?");
-      } else {
-        return; // transient reconnect attempt
-      }
-      setState("error");
-      source.close();
-    });
-  };
+  const { rows, summary, state, error: errorMsg, run } = useEvalStream();
 
   const chartData = rows.map((r) => ({
     case: `#${r.index}`,

@@ -1,4 +1,4 @@
-import type { ContextNode, StoreStats } from "./types";
+import type { NodesPage, StoreStats } from "./types";
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, init);
@@ -8,9 +8,8 @@ async function request<T>(input: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchNodes(): Promise<ContextNode[]> {
-  const { nodes } = await request<{ nodes: ContextNode[] }>("/api/nodes");
-  return nodes;
+export function fetchNodes(limit = 500, offset = 0): Promise<NodesPage> {
+  return request<NodesPage>(`/api/nodes?limit=${limit}&offset=${offset}`);
 }
 
 export function fetchStats(): Promise<StoreStats> {

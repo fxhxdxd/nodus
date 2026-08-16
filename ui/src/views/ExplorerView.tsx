@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
 import { Database, HardDrive, Layers, RefreshCw, Trash2 } from "lucide-react";
-import { deleteNode, fetchNodes, fetchStats } from "../lib/api";
+import { useStore } from "../lib/hooks";
 import { formatBytes } from "../lib/format";
-import type { ContextNode, StoreStats } from "../lib/types";
 
 function StatCard({
   icon: Icon,
@@ -27,37 +25,7 @@ function StatCard({
 }
 
 export default function ExplorerView() {
-  const [nodes, setNodes] = useState<ContextNode[]>([]);
-  const [stats, setStats] = useState<StoreStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nodes, stats] = await Promise.all([fetchNodes(), fetchStats()]);
-      setNodes(nodes);
-      setStats(stats);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const remove = async (id: number) => {
-    try {
-      await deleteNode(id);
-      void refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
+  const { nodes, stats, loading, error, refresh, removeNode } = useStore();
 
   return (
     <div>
@@ -133,7 +101,7 @@ export default function ExplorerView() {
                 </td>
                 <td className="px-3 py-3 text-right">
                   <button
-                    onClick={() => void remove(n.id)}
+                    onClick={() => void removeNode(n.id)}
                     title="Delete this context node"
                     className="rounded-md p-1.5 text-neutral-600 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
                   >

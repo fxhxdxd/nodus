@@ -8,8 +8,33 @@ import path from "path";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
+const DEFAULT_PORT = 3939;
+
+function parsePort(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_PORT;
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`NODUS_PORT must be an integer in 1-65535, got "${raw}"`);
+  }
+  return port;
+}
+
+const LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
+
+function parseLogLevel(raw: string | undefined): (typeof LOG_LEVELS)[number] {
+  if (raw === undefined) return "info";
+  const level = raw.toLowerCase();
+  if (!(LOG_LEVELS as readonly string[]).includes(level)) {
+    throw new Error(`NODUS_LOG_LEVEL must be one of ${LOG_LEVELS.join("|")}, got "${raw}"`);
+  }
+  return level as (typeof LOG_LEVELS)[number];
+}
+
 /** HTTP port for MCP endpoints, REST API, and the dashboard. */
-export const PORT = Number(process.env.NODUS_PORT ?? 3939);
+export const PORT = parsePort(process.env.NODUS_PORT);
+
+/** Minimum level emitted by the logger. */
+export const LOG_LEVEL = parseLogLevel(process.env.NODUS_LOG_LEVEL);
 
 /** Directory holding the SQLite database (created on boot). */
 const DATA_DIR = process.env.NODUS_DATA_DIR ?? path.join(PROJECT_ROOT, "data");

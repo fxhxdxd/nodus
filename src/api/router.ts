@@ -8,15 +8,37 @@
  */
 
 import express, { type Request, type Response, type Router } from "express";
-import { listAllNodes, deleteNodeById, getStats } from "../db";
+import { listAllNodes, countNodes, deleteNodeById, getStats } from "../db";
 import { runEvalSuite } from "../eval/suite";
 import { PORT } from "../config";
+import { errorMessage, logger } from "../logger";
+
+/** Parse a query parameter as a bounded non-negative integer. */
+function intParam(
+  raw: unknown,
+  fallback: number,
+  min: number,
+  max: number
+): number | undefined {
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) return undefined;
+  return value;
+}
 
 export function createApiRouter(): Router {
   const api = express.Router();
 
-  api.get("/nodes", (_req: Request, res: Response) => {
-    res.json({ nodes: listAllNodes() });
+  api.get("/nodes", (req: Request, res: Response) => {
+    const limit = intParam(req.query.limit, 500, 1, 1000);
+    const offset = intParam(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+    if (limit === undefined || offset === undefined) {
+      res.status(400).json({
+        error: "limit must be 1-1000 and offset a non-negative integer",
+      });
+      return;
+    }
+    res.json({ nodes: listAllNodes(limit, offset), total: countNodes(), limit, offset });
   });
 
   api.delete("/nodes/:id", (req: Request, res: Response) => {
@@ -57,12 +79,19 @@ export function createApiRouter(): Router {
         res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
       }
     } catch (err) {
+      logger.error("eval_stream_failed", { error: errorMessage(err) });
       if (!clientGone) {
-        const message = err instanceof Error ? err.message : String(err);
-        res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
+        res.write(
+          `event: error\ndata: ${JSON.stringify({ message: "Eval run failed — check server logs" })}\n\n`
+        );
       }
     }
     res.end();
+  });
+
+  // JSON 404 for unknown API routes (instead of the HTML default).
+  api.use((_req: Request, res: Response) => {
+    res.status(404).json({ error: "Not found" });
   });
 
   return api;

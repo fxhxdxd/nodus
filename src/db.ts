@@ -38,12 +38,15 @@ db.exec(`
 `);
 
 // Prepared statements are compiled once and reused for every call.
+// The WHERE clause makes the upsert idempotent: re-sending an identical
+// value is a no-op rather than an updated_at churn.
 const upsertStmt = db.prepare(`
   INSERT INTO context_nodes (domain, key, value)
   VALUES (@domain, @key, @value)
   ON CONFLICT (domain, key) DO UPDATE SET
     value      = excluded.value,
     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  WHERE excluded.value <> context_nodes.value
 `);
 
 const getByDomainKeyStmt = db.prepare(
@@ -66,7 +69,7 @@ const deleteStmt = db.prepare(
 );
 
 const listAllStmt = db.prepare(
-  `SELECT * FROM context_nodes ORDER BY domain ASC, updated_at DESC`
+  `SELECT * FROM context_nodes ORDER BY domain ASC, updated_at DESC LIMIT ? OFFSET ?`
 );
 
 const deleteByIdStmt = db.prepare(`DELETE FROM context_nodes WHERE id = ?`);
@@ -80,10 +83,14 @@ function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
-/** Insert or update a context node. Returns the stored row. */
+/** Insert or update a context node (idempotent). Returns the stored row. */
 export function upsertNode(domain: string, key: string, value: string): ContextNode {
   upsertStmt.run({ domain, key, value });
-  return getByDomainKeyStmt.get(domain, key) as ContextNode;
+  const node = getByDomainKeyStmt.get(domain, key) as ContextNode | undefined;
+  if (!node) {
+    throw new Error(`Upsert failed to persist ${domain}/${key}`);
+  }
+  return node;
 }
 
 /** Exact lookup of a single node by domain + key. */
@@ -107,9 +114,14 @@ export function deleteNode(domain: string, key: string): boolean {
   return deleteStmt.run(domain, key).changes > 0;
 }
 
-/** Every node in the store, grouped by domain, newest first within each. */
-export function listAllNodes(): ContextNode[] {
-  return listAllStmt.all() as ContextNode[];
+/** A page of nodes, grouped by domain, newest first within each. */
+export function listAllNodes(limit = 500, offset = 0): ContextNode[] {
+  return listAllStmt.all(limit, offset) as ContextNode[];
+}
+
+/** Total number of stored nodes. */
+export function countNodes(): number {
+  return (countStmt.get() as { total: number }).total;
 }
 
 /** Delete a node by numeric id. Returns true if a row was removed. */

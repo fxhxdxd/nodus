@@ -39,7 +39,8 @@ pay a minimal, constant context cost no matter how much is stored:
 src/
   index.ts          entrypoint
   app.ts            Express assembly (middleware, routes, static)
-  config.ts         env-driven configuration (port, paths)
+  config.ts         env-driven configuration (port, paths, log level)
+  logger.ts         structured, level-based logging
   db.ts             SQLite persistence layer
   mcp/
     server.ts       MCP server factory (the two registry tools)
@@ -119,6 +120,7 @@ npm run typecheck          # strict TS across the backend
 | `NODUS_PORT` | `3939` | HTTP port |
 | `NODUS_DATA_DIR` | `./data` | directory for the SQLite DB |
 | `NODUS_DB_PATH` | `<data dir>/nodus.db` | exact DB file path |
+| `NODUS_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
 
 ## Always-on serving (macOS)
 

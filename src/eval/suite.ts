@@ -148,6 +148,24 @@ function round2(n: number): number {
 }
 
 /**
+ * Extract the concatenated text blocks from a tool result. Validated at
+ * runtime rather than cast — the payload crosses the MCP client boundary.
+ */
+function extractText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter(
+      (block): block is { type: "text"; text: string } =>
+        typeof block === "object" &&
+        block !== null &&
+        (block as { type?: unknown }).type === "text" &&
+        typeof (block as { text?: unknown }).text === "string"
+    )
+    .map((block) => block.text)
+    .join("\n");
+}
+
+/**
  * Run the full suite against a Nodus SSE endpoint, yielding events as each
  * call completes. The connection is always closed, even if iteration is
  * abandoned early (generator finally block).
@@ -171,10 +189,7 @@ export async function* runEvalSuite(sseUrl: string): AsyncGenerator<EvalEvent> {
       const latencyMs = performance.now() - startedAt;
 
       const payloadBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
-      const innerText = (result.content as Array<{ type: string; text?: string }>)
-        .filter((b) => b.type === "text")
-        .map((b) => b.text ?? "")
-        .join("\n");
+      const innerText = extractText(result.content);
 
       const row: EvalRow = {
         index: i + 1,

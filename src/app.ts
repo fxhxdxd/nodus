@@ -3,11 +3,17 @@
  * the statically served dashboard.
  */
 
-import express, { type Express, type Request, type Response } from "express";
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import cors from "cors";
 import { UI_DIST_PATH } from "./config";
 import { mountMcpTransports } from "./mcp/transports";
 import { createApiRouter } from "./api/router";
+import { errorMessage, logger } from "./logger";
 
 export function createApp(): Express {
   const app = express();
@@ -36,6 +42,24 @@ export function createApp(): Express {
         );
     });
   }
+
+  // Final error boundary: log the details server-side, return a clean JSON
+  // body, and never leak stack traces or internals to clients. The unused
+  // `next` parameter is required — Express identifies error middleware by
+  // its four-argument signature.
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    logger.error("unhandled_request_error", {
+      method: req.method,
+      path: req.path,
+      error: errorMessage(err),
+    });
+    if (res.headersSent) {
+      // Mid-stream failure (SSE): the response can only be terminated.
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: "Internal server error" });
+  });
 
   return app;
 }
