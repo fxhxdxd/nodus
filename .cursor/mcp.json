@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "nodus": {
+      "url": "http://localhost:3939/sse"
+    }
+  }
+}

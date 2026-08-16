@@ -1,0 +1,35 @@
+{
+  "name": "nodus",
+  "version": "1.0.0",
+  "description": "Cross-platform MCP context server: a shared, persistent memory brain for Cursor, Claude Code, and Codex agents",
+  "scripts": {
+    "test": "npm run typecheck",
+    "start": "tsx src/index.ts",
+    "dev": "tsx src/index.ts",
+    "eval": "tsx src/eval/harness.ts",
+    "typecheck": "tsc --noEmit",
+    "generate-configs": "node scripts/generate-configs.js",
+    "build:ui": "npm --prefix ui run build",
+    "build": "tsc && npm run build:ui"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

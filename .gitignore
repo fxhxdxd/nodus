@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local data (SQLite store)
+data/
+
+# OS noise
+.DS_Store
+
+# Local agent state
+.codex/

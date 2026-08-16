@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "nodus": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://localhost:3939/sse"
+      ]
+    }
+  }
+}
